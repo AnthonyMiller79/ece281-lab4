@@ -26,6 +26,14 @@ architecture top_basys3_arch of top_basys3 is
 
     -- signal declarations
     
+  signal w_s_clk :std_logic;
+  signal w_tdm_clk :std_logic;
+  signal w_floor1 : std_logic_vector(3 downto 0);
+  signal w_floor2 : std_logic_vector(3 downto 0);
+  signal data : std_logic_vector(3 downto 0);
+  signal s : std_logic_vector(3 downto 0);
+  signal w_fsm_reset : std_logic;
+    signal w_clk_reset : std_logic;
   
 	-- component declarations
     component sevenseg_decoder is
@@ -69,13 +77,62 @@ architecture top_basys3_arch of top_basys3 is
     end component clock_divider;
 	
 begin
+w_fsm_reset <= btnU or btnR;
+w_clk_reset <= btnU or btnL;
+    		clkdiv_inst : clock_divider 		--instantiation of clock_divider to take 
+        generic map ( k_DIV => 25000000) 
+        port map (						  
+            i_clk   => clk,
+            i_reset => w_clk_reset,
+            o_clk   => w_s_clk
+        ); 
+            		tdmclk : clock_divider 		--instantiation of clock_divider to take 
+        generic map ( k_DIV => 50000 )
+        port map (						  
+            i_clk   => clk,
+            i_reset => w_clk_reset,
+            o_clk   => w_tdm_clk
+        );    
+	
 	-- PORT MAPS ----------------------------------------
-    	
+	elevator1 : elevator_controller_fsm
+	port map (
+	i_clk => w_s_clk,
+	i_reset => w_fsm_reset,
+	is_stopped => sw(1),
+	go_up_down => sw(0),
+	o_floor => w_floor1
+	);
+    elevator2 : elevator_controller_fsm
+	port map (
+	i_clk => w_s_clk,
+	i_reset => w_fsm_reset,
+	is_stopped => sw(14),
+	go_up_down => sw(15),
+	o_floor => w_floor2
+	);
+	tdm : TDM4
+	port map (
+	i_clk =>w_tdm_clk,
+	i_reset =>btnU,
+	i_D3 => "1111",
+	i_D2 => w_floor2,
+	i_D1 => "1111",
+	i_D0 => w_floor1,
+	o_data => data,
+	o_sel => s
+	);
 	
+	seven_seg : sevenseg_decoder
+	port map (
+	i_Hex => data,
+	o_seg_n => seg
+	);
 	-- CONCURRENT STATEMENTS ----------------------------
-	
+	an <= s;
 	-- LED 15 gets the FSM slow clock signal. The rest are grounded.
-	
+	led(15) <= w_s_clk;
+	led(14 downto 0) <= (others => '0');
 	-- leave unused switches UNCONNECTED. Ignore any warnings this causes.
 	
 	-- reset signals
